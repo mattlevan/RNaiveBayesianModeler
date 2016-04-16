@@ -17,34 +17,39 @@ flower.data <- combined.data[flower.rows, ]
 gray.rows <- combined.data[,1] == "gray"
 gray.data <- combined.data[gray.rows, ]
 
-# Apply FFT to each electrode of each tester (subject).
-ApplyFFT <- function(df) {
-  # Temp variable k corresponds to k in BrainEmotion pdf.
-  for (k in 4:length(df)) {
-      
-  }
-}
-
-# Apply FFT to each electrode for each tester (subject).
+# Apply the Fast Fourier Transform to each electrode for each tester (subject).
 ApplyFFT <- function(df, subject.ids) {
-  initial.frame <- data.frame(x=1:256)
-    
-  # frequencyFrame stores all fft data in a 256 x (34*25) data frame.
-  fft.frame <- initial.frame[,FALSE] # Create the frequency frame
+  # Build the initial data frame...
+  # fft.frame stores all FFT data in a 256 x (34*25) data frame.
+  fft.frame <- data.frame(id = matrix(nrow = 0, ncol = 1),
+                          tp = matrix(nrow = 0, ncol = 1),
+                          matrix(nrow = 0, ncol = 25))
   
-  for(i in 1:length(subject.ids)) {
-    for(j in 4:28) {
-      # Create a matrix of fft values for 1 electrode, 1 subject.
-      fft.array <- matrix(fft(df[df[,2]==subject.ids[i],j]), nrow = 256, ncol = 1)
-      # Name the matrix columns.
-      colnames(fft.array) <- paste0(subject.ids[i],"-El",(j-3))
-      # Store the frequencies in the frequencyFrame.
-      fft.frame <- cbind(fft.frame, fft.array)
+  # Loop through all the data in combined table.
+  for (i in 1:length(subject.ids)) {
+    # Declare an empty matrix to store FFT results.
+    fft.results <- matrix(nrow = 256, ncol = 0)
+
+    # Now, loop through the electrodes contained in columns [4,28].
+    for (j in 4:length(df)) {
+      # Create a matrix of FFT values for 1 electrode, 1 subject.
+      # fft.table <- matrix(fft(df[df[,2]==subject.ids[i],j]), nrow = 256, ncol = 1)
+      # Get the results of FFT.
+      fft.results <- cbind(fft.results, fft(df[df[,2] == subject.ids[i],j]))
     }
+
+    # Populate the table.
+    fft.table <- data.frame(id = rep(subject.ids[i],256),
+                            tp = 1:256,
+                            fft.results)
+    # Correct the electrode column names.
+    colnames(fft.table) <- c("id", "tp", seq(1,25))
+    
+    # Store the frequencies in the fft.frame.
+    fft.frame <- rbind(fft.frame, fft.table)
   }
 
-  row.names(fft.frame) = paste0(1:256)
-  fft.frame # Return the binFrame
+  fft.frame # Return the fft.frame.
 }
 
 
@@ -59,7 +64,7 @@ beta.frame <- magnitude.frame[14:31,]
 
 # Obtain the mean of magnitudes for each electrode from magnitudes stored in 
 # data.frames (delta.frame, etc.).
-delta <- col.means(delta.frame)
-theta <- col.means(theta.frame)
-alpha <- col.means(alpha.frame)
-beta <- col.means(beta.frame)
+delta <- colMeans(delta.frame)
+theta <- colMeans(theta.frame)
+alpha <- colMeans(alpha.frame)
+beta <- colMeans(beta.frame)
