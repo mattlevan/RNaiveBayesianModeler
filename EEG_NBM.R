@@ -94,9 +94,10 @@ colnames(theta.frame) = c("id", "tp", seq(1,25))
 colnames(alpha.frame) = c("id", "tp", seq(1,25))
 colnames(beta.frame) = c("id", "tp", seq(1,25))
 
-# Iterate through each subject.
+# Obtain average electrode magnitudes for every subject and every electrode.
 j <- 1
 for (i in seq(1,length(subject.ids))) {
+  
   # Bind the rows to the ends of each frame.
   delta.frame <- rbind(delta.frame, magnitude.frame[(j):(j+6), ])
   theta.frame <- rbind(theta.frame, magnitude.frame[(j+7):(j+8), ])
@@ -178,6 +179,43 @@ CreatePlots <- function(df, title){
   tmp.list <- ggplot(data=df, aes(x=Electrode, y=Magnitude, group = Condition, colour = Condition)) +
     geom_line() + ggtitle(title)
   tmp.list
+}
+
+# Spectral density function. Takes a subject's magnitude frame and a frequency
+# band (frequency range, example: c(1, 6.5), which would indicate 1-6.5 Hz) and 
+# returns a subject data frame populatd with the spectral densities for each 
+# electrode.
+ObtainDensity <- function(df, freq_band) {
+  # Construct empty data frame.
+  density.frame <- data.frame(matrix(nrow = 1, ncol = 26))
+  density.frame[1] <- df[1,1] 
+  colnames(density.frame) <- c("id", seq(1,25))
+
+  # Calculate total length of frequency band for dividing integral by later.
+  a <- freq_band[2]
+  b <- freq_band[1]
+  length <- b - a
+
+  # Loop through the discrete time range.
+  for (i in 3:27) {
+    value <- 0
+    
+    # Loop through all electrodes.
+    for (j in a:b) {
+      value <- value + df[j,i]**2 
+    }
+
+    # Finish calculation of spectral density.
+    value <- value / length
+
+    # Ultimately, new subject data frame will contain a total of:
+    # 26 columns (first is id, 2-26 are electrodes 1-25).
+    # 1 appended row of the specified frequency band.
+    density.frame[1,i-1] <- value
+  }
+
+  # Return...
+  density.frame
 }
 
 # Generate all Mean Frames for delta, theta, etc.
