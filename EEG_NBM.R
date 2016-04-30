@@ -3,36 +3,7 @@ library("ggplot2")
 library("stats")
 library("reshape2")
 library("plyr")
-
-# Import the raw data.
-combined.data <- read.csv("Flower_Gray_Combined_Data.csv", header=FALSE)
 #library("plotly")
-
-# Rename the columns in combined.data.
-colnames(combined.data) <- c("type", "id", "tp", paste0(seq(1:25)))
-
-# Extract all unique subject IDs.
-subject.ids <- levels(combined.data[,2])
-
-# Extract flower subject IDs
-f.subject.ids <- combined.data[,1]=="flower"
-f.subject.ids <- combined.data[f.subject.ids,2]
-f.subject.ids <- factor(f.subject.ids)
-f.subject.ids <- levels(f.subject.ids)
-
-#Extract gray subject IDs
-g.subject.ids <- combined.data[,1]=="gray"
-g.subject.ids <- combined.data[g.subject.ids,2]
-g.subject.ids <- factor(g.subject.ids)
-g.subject.ids <- levels(g.subject.ids)
-
-# Isolate the flower data
-flower.rows <- combined.data[,1] == "flower"
-flower.data <- combined.data[flower.rows, ]
-
-# Isolate the gray data
-gray.rows <- combined.data[,1] == "gray"
-gray.data <- combined.data[gray.rows, ]
 
 #
 # Functions for data extraction
@@ -77,69 +48,6 @@ ApplyMagnitude <- function(df){
   data.frame(df[,1], abs(df[,2:length(df)]))
 }
 
-# Calculate the magnitudes, then create frames for the delta, theta, alpha, and
-# beta frequencies.
-fft.data <- ApplyFFT(combined.data, subject.ids)
-magnitude.frame <- ApplyMagnitude(fft.data)
-
-# Rename electrode columns back to 1..25 instead of X1..X25.
-colnames(magnitude.frame) <- c("id", "tp", seq(1,25))
-
-# Build one data frame for each significant frequency spectrum and append each
-# subject's mean values for their respective electrode readings.
-delta.frame <- data.frame(matrix(nrow = 0, ncol = 27))
-theta.frame <- data.frame(matrix(nrow = 0, ncol = 27))
-alpha.frame <- data.frame(matrix(nrow = 0, ncol = 27))
-beta.frame <- data.frame(matrix(nrow = 0, ncol = 27))
-# Rename initial frame columns.
-colnames(delta.frame) = c("id", "tp", seq(1,25))
-colnames(theta.frame) = c("id", "tp", seq(1,25))
-colnames(alpha.frame) = c("id", "tp", seq(1,25))
-colnames(beta.frame) = c("id", "tp", seq(1,25))
-
-# Obtain average electrode magnitudes for every subject and every electrode.
-j <- 1
-for (i in seq(1,length(subject.ids))) {
-  
-  # Bind the rows to the ends of each frame.
-  delta.frame <- rbind(delta.frame, magnitude.frame[(j):(j+6), ])
-  theta.frame <- rbind(theta.frame, magnitude.frame[(j+7):(j+8), ])
-  alpha.frame <- rbind(alpha.frame, magnitude.frame[(j+9):(j+12), ])
-  beta.frame <- rbind(beta.frame, magnitude.frame[(j+13):(j+30), ])
-  
-  # Create a matrix for each list of electrode means.
-  delta.means <- cbind(id = subject.ids[i], 
-                       electrode = seq(1,25), 
-                       mean = colMeans(delta.frame[3:27]))
-  theta.means <- cbind(id = subject.ids[i], 
-                       electrode = seq(1,25), 
-                       mean = colMeans(theta.frame[3:27]))
-  alpha.means <- cbind(id = subject.ids[i], 
-                       electrode = seq(1,25), 
-                       mean = colMeans(alpha.frame[3:27]))
-  beta.means <- cbind(id = subject.ids[i], 
-                      electrode = seq(1,25), 
-                      mean = colMeans(beta.frame[3:27]))
-  
-  # Convert each means to a data frame.
-  delta.means <- data.frame(delta.means)
-  theta.means <- data.frame(theta.means)
-  alpha.means <- data.frame(alpha.means)
-  beta.means <- data.frame(beta.means)
-
-  # Create a list of all the frames
-  wave.means <- list(delta.means, theta.means, alpha.means, beta.means)
-
-  # Output a plot for each subject.
-  
-  # Increment j.
-  if (i < 34) {
-    j <- (j+256)
-  }
-}
-
-delta.plot <- ggplot(data=delta.means, aes(x=electrode, y=factor(mean), fill=factor(mean))) + geom_bar(stat="identity") + guides(fill=FALSE) + ggtitle(subject.ids[1]) + scale_x_discrete(limits=seq(1,25))
-
 # Extract data for specific subject ID sets.  Returns a data.frame 
 # containing only data with for the list of subjects passed to the 
 # function.
@@ -174,35 +82,23 @@ UniteFrame <- function(h.df, n.df, title) {
   df.united
 }
 
-# Accept a data.frame with the layout creawted by UniteFrame() and return a list of plots.
+# Accept a data.frame with the layout creawted by UniteFrame() and 
+# return a list of plots.
 CreatePlots <- function(df, title){
+  # Unlist the magnitude means
   df$mag.mean <- unlist(df$mag.mean)
+
+  # Set names
   names(df)[2:3] <- c("Electrode", "Magnitude")
-  Condition <- df$Condition
+
+  # Create the plot
   tmp.list <- ggplot(data=df, 
                      aes(x=Electrode, 
                          y=Magnitude, 
                          group = Condition, 
                          colour = Condition)) +
-    geom_line() + ggtitle(title)
-
-# Accept a data.frame with the layout creawted by UniteFrame() and 
-# return a list of plots.
-CreatePlots <- function(df, title){
-	# Unlist the magnitude means
-  df$mag.mean <- unlist(df$mag.mean)
-
-	# Set names
-  names(df)[2:3] <- c("Electrode", "Magnitude")
-
-	# Create the plot
-  tmp.list <- ggplot(data=df, 
-					 aes(x=Electrode, 
-					 y=Magnitude, 
-					 group = Condition, 
-					 colour = Condition)) +
-			  geom_line() + 
-			  ggtitle(title)
+                     geom_line() + 
+                     ggtitle(title)
   tmp.list
 }
 
@@ -241,6 +137,71 @@ ObtainDensity <- function(df, freq_band) {
 
   # Return...
   density.frame
+}
+
+FindMinMax <- function(df) {
+  # Build empty matrix.
+  values <- matrix(nrow = 2, ncol = 4)
+  colnames(values) <- c("delta", "theta", "alpha", "beta")
+  rownames(values) <- c("min", "max")
+
+  # Assign min values for each band.
+  values[1,1] <- min(df[df[,1] == "delta", 3:27])  
+  values[1,2] <- min(df[df[,1] == "theta", 3:27])  
+  values[1,3] <- min(df[df[,1] == "alpha", 3:27])  
+  values[1,4] <- min(df[df[,1] == "beta", 3:27])  
+
+  # Assign max values for each band.
+  values[2,1] <- max(df[df[,1] == "delta", 3:27])  
+  values[2,2] <- max(df[df[,1] == "theta", 3:27])  
+  values[2,3] <- max(df[df[,1] == "alpha", 3:27])  
+  values[2,4] <- max(df[df[,1] == "beta", 3:27])  
+
+  # Return the matrix.
+  values
+}
+
+# GetAllDensities function accepts a data.frame and list of subject IDs.
+# The function calls ObtainDensity function for each frequency band and
+# consolidates them in a single data.frame.  The data.frame is returned.
+GetAllDensities <- function(df, subj.ids){
+  # ApplyMagnitude to df.
+  df <- ApplyMagnitude(df)
+
+  # Obtain the spectral density for the delta/theta/alpha/beta
+  spec.den <- data.frame(matrix(nrow = 0, ncol = 27))
+
+  # Enter the names for each band to be requested
+  colnames(spec.den) <- (c("freq.band", "id", seq(1,25)))
+  
+  for(i in 1:length(subj.ids)){
+    # Temporary frames to collect densities for 5 frequency bands.
+    df.tmp <- data.frame(df[df[,1] == subj.ids[i],])
+    d.block <- data.frame(matrix(nrow = 4, ncol = 1))
+    d.block[,1] <- c("delta", "theta", "alpha", "beta")
+    colnames(d.block) <- c("freq.band")
+    d.vals <- data.frame(matrix(nrow = 0, ncol = 26))
+
+    # Delta
+    tmp <- ObtainDensity(df.tmp, c(1,7))
+    d.vals <- rbind(d.vals, tmp)
+    # Theta
+    tmp <- ObtainDensity(df.tmp, c(8,9))
+    d.vals <- rbind(d.vals, tmp)
+    # Alpha
+    tmp <- ObtainDensity(df.tmp, c(10, 12))
+    d.vals <- rbind(d.vals, tmp)
+    # Beta
+    tmp <- ObtainDensity(df.tmp, c(13, 30))
+    d.vals <- rbind(d.vals, tmp)
+
+    # Add to spec.den
+    d.block <- cbind(d.block, d.vals)
+    spec.den <- rbind(spec.den, d.block)
+  }
+  
+  # Return...
+  spec.den
 }
 
 #
@@ -300,74 +261,29 @@ colnames(theta.frame) <- c("id", "tp", seq(1,25))
 colnames(alpha.frame) <- c("id", "tp", seq(1,25))
 colnames(beta.frame) <- c("id", "tp", seq(1,25))
 
-# GetAllDensities function accepts a data.frame and list of subject IDs.
-# The function calls ObtainDensity function for each frequency band and
-# consolidates them in a single data.frame.  The data.frame is returned.
-GetAllDensities <- function(df, subj.ids){
-  df.subset <- data.frame(matrix(nrow = 0, ncol = 27))
-  for(i in 1:length(subj.ids)){
-    df.tmp <- data.frame(df[df[,1] == subj.ids[i],])
-    df.subset <- rbind(df.subset,df.tmp)
-  }
-
-	# Obtain the spectral density for the delta/theta/alpha/beta
-	spec.den <- data.frame(matrix(nrow = 0, ncol = 27))
-
-	# Enter the names for each band to be requested
-	colnames(spec.den) <- (c("freq.band", "id", seq(1,25)))
-	
-	for(i in 1:length(subj.ids)){
-		# Temporary frames to collect densities for 5 frequency bands.
-    df.tmp <- data.frame(df[df[,1] == subj.ids[i],])
-		d.block <- data.frame(matrix(nrow = 4, ncol = 1))
-		d.block[,1] <- c("delta", "theta", "alpha", "beta")
-		colNames(d.block) <- c("freq.band")
-		d.vals <- data.frame(matrix(nrow = 0, ncol = 26))
-
-		# Delta
-		tmp <- ObtainDensity(df.tmp, c(1,7))
-		d.vals <- rbind(d.vals, tmp)
-		# Theta
-		tmp <- ObtainDensity(df.tmp, c(8,9))
-		d.vals <- rbind(d.vals, tmp)
-		# Alpha
-		tmp <- ObtainDensity(df.tmp, c(10, 12))
-		d.vals <- rbind(d.vals, tmp)
-		# Beta
-		tmp <- ObtainDensity(df.tmp, c(13, 30))
-		d.vals <- rbind(d.vals, tmp)
-
-		# Add to spec.den
-		d.block <- cbind(d.block, d.vals)
-		spec.den <- rbind(spec.den, d.block)
-	}
-	
-	# Return...
-	spec.den
-}
 
 # Bayesian probability calculator.
 # The following conditional probabilities are to be calculated to train
 # the Naive Bayesian Classifier:
-#		P(delta|F), P(theta|F), P(alpha|F), P(beta|F)
-#		P(delta|G), P(theta|G), P(alpha|G), P(beta|G)
+#       P(delta|F), P(theta|F), P(alpha|F), P(beta|F)
+#       P(delta|G), P(theta|G), P(alpha|G), P(beta|G)
 #
 # P(delta|F) = P(F|delta)*P(F)/P(delta|F),P(theta|F), P(alpha|F), P(beta|F)
 
 # Obtain average electrode magnitudes for every subject and every electrode.
 j <- 1
 for (i in seq(1,length(subject.ids))) {
-	
-	#
-	# Mean magnitude frames for each frequency.
-	#
+    
+    #
+    # Mean magnitude frames for each frequency.
+    #
 
   # Bind the rows to the ends of each frame.
   delta.frame <- rbind(delta.frame, magnitude.frame[(j):(j+6), ])
   theta.frame <- rbind(theta.frame, magnitude.frame[(j+7):(j+8), ])
   alpha.frame <- rbind(alpha.frame, magnitude.frame[(j+9):(j+12), ])
   beta.frame <- rbind(beta.frame, magnitude.frame[(j+13):(j+30), ])
-	
+    
   # Create a matrix for each list of electrode means.
   delta.means <- cbind(id = subject.ids[i], 
                        electrode = seq(1,25), 
@@ -400,13 +316,13 @@ for (i in seq(1,length(subject.ids))) {
 }
 
 delta.plot <-ggplot(data=delta.means,
-					aes(x=electrode,
-						y=factor(mean),
-						fill=factor(mean))) +
-					geom_bar(stat="identity") + 
-					guides(fill=FALSE) + 
-					ggtitle(subject.ids[1]) + 
-					scale_x_discrete(limits=seq(1,25))
+                    aes(x=electrode,
+                        y=factor(mean),
+                        fill=factor(mean))) +
+                    geom_bar(stat="identity") + 
+                    guides(fill=FALSE) + 
+                    ggtitle(subject.ids[1]) + 
+                    scale_x_discrete(limits=seq(1,25))
 
 # Generate all Mean Frames for delta, theta, etc.
 f.delta.frame <- ExtractSubjectData(delta.frame, f.subject.ids)
@@ -435,6 +351,9 @@ u.beta.mean <- UniteFrame(f.beta.mean, g.beta.mean)
 
 # Obtain all the spectral densities
 spectral.densities <- GetAllDensities(fft.data, subject.ids)
+
+# Obtain min/max values.
+min.max <- FindMinMax(spectral.densities)
 
 # Create plots for all mean values
 delta.plot <- CreatePlots(u.delta.mean, c("Mean Delta Magnitudes"))
