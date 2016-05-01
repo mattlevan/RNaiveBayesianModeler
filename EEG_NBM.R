@@ -356,6 +356,11 @@ g.spectral.densities <- GetAllDensities(fft.data, g.subject.ids)
 # Obtain min/max values.
 f.min.max <- FindMinMax(f.spectral.densities)
 g.min.max <- FindMinxMax(g.spectral.densities)
+=======
+spectral.densities <- GetAllDensities(fft.data, subject.ids)
+
+# Obtain min/max values.
+min.max <- FindMinMax(spectral.densities)
 
 # Create plots for all mean values
 delta.plot <- CreatePlots(u.delta.mean, c("Mean Delta Magnitudes"))
